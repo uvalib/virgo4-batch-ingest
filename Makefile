@@ -2,7 +2,7 @@ GOCMD=go
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
-PACKAGENAME=virgo4-batch-ingest
+PACKAGENAME=virgo4-simple-ingest
 BINNAME=$(PACKAGENAME)
 
 build: darwin 
