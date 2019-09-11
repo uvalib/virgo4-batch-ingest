@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"log"
 	"os"
 
@@ -28,6 +27,15 @@ func main() {
 
 	svc := sqs.New(sess)
 
+	// get the queue URL from the name
+	result, err := svc.GetQueueUrl( &sqs.GetQueueUrlInput{
+		QueueName: aws.String( cfg.OutQueueName ),
+	})
+
+	if err != nil {
+		log.Fatal( err )
+	}
+
 	file, err := os.Open( cfg.FileName )
 	if err != nil {
 		log.Fatal( err )
@@ -39,21 +47,28 @@ func main() {
 
 		result, err := svc.SendMessage( &sqs.SendMessageInput{
 			MessageAttributes: map[string]*sqs.MessageAttributeValue{
-				"OP": &sqs.MessageAttributeValue{
+				"op": &sqs.MessageAttributeValue{
 					DataType:    aws.String("String"),
-					StringValue: aws.String("ADD"),
+					StringValue: aws.String("add"),
+				},
+				"src": &sqs.MessageAttributeValue{
+					DataType:    aws.String("String"),
+					StringValue: aws.String( cfg.FileName ),
+				},
+				"type": &sqs.MessageAttributeValue{
+					DataType:    aws.String("String"),
+					StringValue: aws.String( "text" ),
 				},
 			},
 			MessageBody: aws.String( scanner.Text() ),
-			QueueUrl:    &cfg.QueueUrl,
+			QueueUrl:    result.QueueUrl,
 		})
 
 		if err != nil {
 			log.Fatal( err )
 		}
 
-		fmt.Println("Success", *result.MessageId)
-//		fmt.Println( scanner.Text() )
+		log.Printf("Success: %s", *result.MessageId)
 	}
 
 	if err := scanner.Err( ); err != nil {
