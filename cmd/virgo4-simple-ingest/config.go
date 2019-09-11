@@ -22,7 +22,7 @@ func LoadConfiguration() *ServiceConfig {
 
 	flag.Parse()
 
-	log.Printf("[CONFIG] QueueUrl             = [%s]", cfg.OutQueueName )
+	log.Printf("[CONFIG] OutQueueName         = [%s]", cfg.OutQueueName )
 	log.Printf("[CONFIG] FileName             = [%s]", cfg.FileName )
 
 	return &cfg
