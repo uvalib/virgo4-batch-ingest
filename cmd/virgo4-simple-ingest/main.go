@@ -102,5 +102,5 @@ func main() {
 		}
 	}
 	duration := time.Since(start)
-	log.Printf("Done, processed %d records (%0.2f tps)", count, float64( count ) / duration.Seconds() )
+	log.Printf("Done, processed %d records in %0.2f seconds (%0.2f tps)", count, duration.Seconds(), float64( count ) / duration.Seconds() )
 }
