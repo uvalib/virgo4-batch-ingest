@@ -80,7 +80,7 @@ func main() {
 				},
 				"type": &sqs.MessageAttributeValue{
 					DataType:    aws.String("String"),
-					StringValue: aws.String( "text" ),
+					StringValue: aws.String( "xml" ),
 				},
 			},
 			MessageBody: aws.String( string( line ) ),
