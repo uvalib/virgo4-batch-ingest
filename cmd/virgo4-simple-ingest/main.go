@@ -96,6 +96,10 @@ func main() {
 		if count % 100 == 0 {
 			log.Printf("Processed %d records (%0.2f tps)", count, float64( count ) / duration.Seconds() )
 		}
+
+		if cfg.MaxCount > 0 && count >= cfg.MaxCount  {
+			break
+		}
 	}
 	duration := time.Since(start)
 	log.Printf("Done, processed %d records (%0.2f tps)", count, float64( count ) / duration.Seconds() )
