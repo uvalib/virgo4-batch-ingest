@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"io"
 	"log"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -42,10 +44,31 @@ func main() {
 	}
 	defer file.Close( )
 
-	scanner := bufio.NewScanner( file )
-	for scanner.Scan( ) {
+	reader := bufio.NewReader( file )
 
-		result, err := svc.SendMessage( &sqs.SendMessageInput{
+	count := 0
+	start := time.Now()
+
+	for {
+
+		line, err := reader.ReadString( '\n' )
+
+		if err != nil {
+			// are we done
+			if err == io.EOF {
+				break
+			} else {
+				log.Fatal(err)
+			}
+		}
+
+		sz := len( line )
+		if sz >= 262144 {
+			log.Printf("Ignoring record %d as too large (%d characters)", count, sz )
+			continue
+		}
+
+		_, err = svc.SendMessage( &sqs.SendMessageInput{
 			MessageAttributes: map[string]*sqs.MessageAttributeValue{
 				"op": &sqs.MessageAttributeValue{
 					DataType:    aws.String("String"),
@@ -60,7 +83,7 @@ func main() {
 					StringValue: aws.String( "text" ),
 				},
 			},
-			MessageBody: aws.String( scanner.Text() ),
+			MessageBody: aws.String( string( line ) ),
 			QueueUrl:    result.QueueUrl,
 		})
 
@@ -68,10 +91,12 @@ func main() {
 			log.Fatal( err )
 		}
 
-		log.Printf("Success: %s", *result.MessageId)
+		count ++
+		duration := time.Since(start)
+		if count % 100 == 0 {
+			log.Printf("Processed %d records (%0.2f tps)", count, float64( count ) / duration.Seconds() )
+		}
 	}
-
-	if err := scanner.Err( ); err != nil {
-		log.Fatal(err)
-	}
+	duration := time.Since(start)
+	log.Printf("Done, processed %d records (%0.2f tps)", count, float64( count ) / duration.Seconds() )
 }
