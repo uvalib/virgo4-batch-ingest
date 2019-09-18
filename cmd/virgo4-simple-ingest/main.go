@@ -5,15 +5,8 @@ import (
 	"io"
 	"log"
 	"os"
-	"strconv"
 	"time"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sqs"
 )
-
-var maxPayloadSize = 262144
 
 //
 // main entry point
@@ -25,23 +18,17 @@ func main() {
 	// Get config params and use them to init service context. Any issues are fatal
 	cfg := LoadConfiguration()
 
-	sess, err := session.NewSession( )
+	// load our AWS_SQS helper object
+	aws, err := NewAwsSqs( AwsSqsConfig{ } )
 	if err != nil {
 		log.Fatal( err )
 	}
 
-	svc := sqs.New(sess)
-
-	// get the queue URL from the name
-	result, err := svc.GetQueueUrl( &sqs.GetQueueUrlInput{
-		QueueName: aws.String( cfg.OutQueueName ),
-	})
-
+	// get the queue handle from the queue name
+	outQueueHandle, err := aws.QueueHandle( cfg.OutQueueName )
 	if err != nil {
 		log.Fatal( err )
 	}
-
-	queueUrl := result.QueueUrl
 
 	file, err := os.Open( cfg.FileName )
 	if err != nil {
@@ -50,10 +37,7 @@ func main() {
 	defer file.Close( )
 
 	reader := bufio.NewReader( file )
-
-	batch_size := 10
-	batch_length := 0
-	batch := make( []string, 0 )
+	block := make( []string, 0, MAX_SQS_BLOCK_COUNT )
 
 	count := 0
 	start := time.Now()
@@ -72,46 +56,24 @@ func main() {
 		}
 
 		sz := len( line )
-		if sz >= maxPayloadSize {
+		if sz >= MAX_SQS_MESSAGE_SIZE {
 			log.Printf("Ignoring record %d as too large (%d characters)", count, sz )
 			continue
 		}
 
 		count ++
+    	block = append(block, line )
 
-		// ensure we do not exceed the maximum payload size
-		if batch_length + sz < maxPayloadSize {
-			batch = append( batch, line )
-			batch_length += sz
-		} else {
+		// have we reached a block size limit
+		if count % MAX_SQS_BLOCK_COUNT == MAX_SQS_BLOCK_COUNT - 1 {
 
-			log.Printf("Sending short batch (%d items)", len( batch ) )
-
-			err := sendMessages( cfg, svc, queueUrl, batch )
+			err := sendMessages( cfg, aws, outQueueHandle, block)
 			if err != nil {
 				log.Fatal( err )
 			}
 
-			// reset the batch
-			batch = batch[:0]
-			batch_length = 0
-
-			// and add the record we just read
-			batch = append( batch, line )
-			batch_length += sz
-		}
-
-		// have we reached a batch size limit
-		if len(batch) == batch_size {
-
-			err := sendMessages( cfg, svc, queueUrl, batch )
-			if err != nil {
-				log.Fatal( err )
-			}
-
-			// reset the batch
-			batch = batch[:0]
-            batch_length = 0
+			// reset the block
+			block = block[:0]
 		}
 
 		if count % 100 == 0 {
@@ -124,9 +86,10 @@ func main() {
 		}
 	}
 
-	if len(batch) != 0 {
+	// any remaining records?
+	if len(block) != 0 {
 
-		err := sendMessages( cfg, svc, queueUrl, batch )
+		err := sendMessages( cfg, aws, outQueueHandle, block)
 		if err != nil {
 			log.Fatal( err )
 		}
@@ -136,49 +99,39 @@ func main() {
 	log.Printf("Done, processed %d records in %0.2f seconds (%0.2f tps)", count, duration.Seconds(), float64( count ) / duration.Seconds() )
 }
 
-func sendMessages( cfg * ServiceConfig, svc * sqs.SQS, queueUrl * string, messages []string) error {
+func sendMessages( cfg * ServiceConfig, aws AWS_SQS, queue QueueHandle, messages []string) error {
 
 	count := len( messages )
 	if count == 0 {
 		return nil
 	}
-	batch := make( []*sqs.SendMessageBatchRequestEntry, 0 )
-	for ix, m := range messages {
-		batch = append( batch, constructMessage( cfg, m, ix ) )
+	batch := make( []Message, 0, count )
+	for _, m := range messages {
+		batch = append( batch, constructMessage( cfg.FileName, m ) )
 	}
 
-	_, err := svc.SendMessageBatch( &sqs.SendMessageBatchInput{
-		Entries:     batch,
-		QueueUrl:    queueUrl,
-	})
-
+	opStatus, err := aws.BatchMessagePut( queue, batch )
 	if err != nil {
 		return err
+	}
+
+	// check the operation results
+	for ix, op := range opStatus {
+		if op == false {
+			log.Printf( "WARNING: message %d failed to send to outbound queue", ix )
+		}
 	}
 
 	return nil
 }
 
-func constructMessage( cfg * ServiceConfig, message string, index int ) * sqs.SendMessageBatchRequestEntry {
+func constructMessage( filename string, message string ) Message {
 
-	return &sqs.SendMessageBatchRequestEntry{
-		MessageAttributes: map[string]*sqs.MessageAttributeValue{
-			"op": &sqs.MessageAttributeValue{
-				DataType:    aws.String("String"),
-				StringValue: aws.String("add"),
-			},
-			"src": &sqs.MessageAttributeValue{
-				DataType:    aws.String("String"),
-				StringValue: aws.String( cfg.FileName ),
-			},
-			"type": &sqs.MessageAttributeValue{
-				DataType:    aws.String("String"),
-				StringValue: aws.String("xml"),
-			},
-		},
-		MessageBody: aws.String(message),
-		Id:          aws.String( strconv.Itoa( index )),
-	}
+	attributes := make( []Attribute, 0, 3 )
+	attributes = append( attributes, Attribute{ "op", "add" } )
+	attributes = append( attributes, Attribute{ "src", filename } )
+	attributes = append( attributes, Attribute{ "type", "xml"} )
+	return Message{ Attribs: attributes, Payload: Payload( message )}
 }
 
 //
