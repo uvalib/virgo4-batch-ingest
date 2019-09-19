@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"time"
+
+	"github.com/uvalib/virgo4-sqs-sdk/awssqs"
 )
 
 //
@@ -19,7 +21,7 @@ func main() {
 	cfg := LoadConfiguration()
 
 	// load our AWS_SQS helper object
-	aws, err := NewAwsSqs( AwsSqsConfig{ } )
+	aws, err := awssqs.NewAwsSqs( awssqs.AwsSqsConfig{ } )
 	if err != nil {
 		log.Fatal( err )
 	}
@@ -37,9 +39,9 @@ func main() {
 	defer file.Close( )
 
 	reader := bufio.NewReader( file )
-	block := make( []string, 0, MAX_SQS_BLOCK_COUNT )
+	block := make( []string, 0, awssqs.MAX_SQS_BLOCK_COUNT )
 
-	count := 0
+	count := uint( 0 )
 	start := time.Now()
 
 	for {
@@ -55,8 +57,8 @@ func main() {
 			}
 		}
 
-		sz := len( line )
-		if sz >= MAX_SQS_MESSAGE_SIZE {
+		sz := uint( len( line ) )
+		if sz >= awssqs.MAX_SQS_MESSAGE_SIZE {
 			log.Printf("Ignoring record %d as too large (%d characters)", count, sz )
 			continue
 		}
@@ -65,7 +67,7 @@ func main() {
     	block = append(block, line )
 
 		// have we reached a block size limit
-		if count % MAX_SQS_BLOCK_COUNT == MAX_SQS_BLOCK_COUNT - 1 {
+		if count % awssqs.MAX_SQS_BLOCK_COUNT == awssqs.MAX_SQS_BLOCK_COUNT - 1 {
 
 			err := sendMessages( cfg, aws, outQueueHandle, block)
 			if err != nil {
@@ -99,13 +101,13 @@ func main() {
 	log.Printf("Done, processed %d records in %0.2f seconds (%0.2f tps)", count, duration.Seconds(), float64( count ) / duration.Seconds() )
 }
 
-func sendMessages( cfg * ServiceConfig, aws AWS_SQS, queue QueueHandle, messages []string) error {
+func sendMessages( cfg * ServiceConfig, aws awssqs.AWS_SQS, queue awssqs.QueueHandle, messages []string) error {
 
 	count := len( messages )
 	if count == 0 {
 		return nil
 	}
-	batch := make( []Message, 0, count )
+	batch := make( []awssqs.Message, 0, count )
 	for _, m := range messages {
 		batch = append( batch, constructMessage( cfg.FileName, m ) )
 	}
@@ -125,13 +127,13 @@ func sendMessages( cfg * ServiceConfig, aws AWS_SQS, queue QueueHandle, messages
 	return nil
 }
 
-func constructMessage( filename string, message string ) Message {
+func constructMessage( filename string, message string ) awssqs.Message {
 
-	attributes := make( []Attribute, 0, 3 )
-	attributes = append( attributes, Attribute{ "op", "add" } )
-	attributes = append( attributes, Attribute{ "src", filename } )
-	attributes = append( attributes, Attribute{ "type", "xml"} )
-	return Message{ Attribs: attributes, Payload: Payload( message )}
+	attributes := make( []awssqs.Attribute, 0, 3 )
+	attributes = append( attributes, awssqs.Attribute{ "op", "add" } )
+	attributes = append( attributes, awssqs.Attribute{ "src", filename } )
+	attributes = append( attributes, awssqs.Attribute{ "type", "xml"} )
+	return awssqs.Message{ Attribs: attributes, Payload: awssqs.Payload( message )}
 }
 
 //
