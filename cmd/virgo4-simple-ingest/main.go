@@ -83,6 +83,7 @@ func main() {
 
 	for {
 		if len( outboundMessageChan ) == 0 {
+			time.Sleep( 10 * time.Second)
 			break
 		}
 		log.Printf("Waiting for workers to complete... zzzz" )
