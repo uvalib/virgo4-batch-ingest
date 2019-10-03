@@ -84,6 +84,7 @@ func main() {
 		}
 
 		if cfg.MaxCount > 0 && count >= cfg.MaxCount  {
+			log.Printf("Terminating after %d messages", count )
 			break
 		}
 	}
