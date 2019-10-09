@@ -2,12 +2,15 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	//"fmt"
 	"io"
 	"log"
 	"os"
 	"time"
 
 	"github.com/uvalib/virgo4-sqs-sdk/awssqs"
+	"github.com/antchfx/xmlquery"
 )
 
 //
@@ -65,7 +68,8 @@ func main() {
 		//}
 
 		count ++
-		outboundMessageChan <- constructMessage( cfg.DataSourceName, awssqs.Payload( line ) )
+		id := extractId( line )
+		outboundMessageChan <- constructMessage( cfg.DataSourceName, id, awssqs.Payload( line ) )
 
 		if count % 1000 == 0 {
 			duration := time.Since(start)
@@ -91,14 +95,34 @@ func main() {
 	}
 }
 
-func constructMessage( datasource string, message awssqs.Payload ) awssqs.Message {
+func constructMessage( datasource string, id string, message awssqs.Payload ) awssqs.Message {
 
-	attributes := make( []awssqs.Attribute, 0, 2 )
-	//attributes = append( attributes, awssqs.Attribute{ "op", "add" } )
+	attributes := make( []awssqs.Attribute, 0, 3 )
+	if len( id ) != 0 {
+		//log.Printf("Found ID: [%s]", id )
+		attributes = append( attributes, awssqs.Attribute{ "id", id } )
+	}
 	//attributes = append( attributes, awssqs.Attribute{ "src", filename } )
 	attributes = append( attributes, awssqs.Attribute{ "type", "xml"} )
 	attributes = append( attributes, awssqs.Attribute{ Name: "source", Value: datasource } )
 	return awssqs.Message{ Attribs: attributes, Payload: message }
+}
+
+func extractId( buffer string ) string {
+
+	// generate a query structure from the body
+	doc, err := xmlquery.Parse( bytes.NewReader( []byte( buffer ) ) )
+	if err != nil {
+		return ""
+	}
+
+	// attempt to extract the statusNode field
+	idNode := xmlquery.FindOne( doc, "//doc/field[@name='id']")
+	if idNode == nil {
+		return ""
+	}
+
+	return idNode.InnerText( )
 }
 
 //
