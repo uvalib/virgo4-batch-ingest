@@ -91,30 +91,10 @@ func processesOutboundBlock(id int, aws awssqs.AWS_SQS, messages []awssqs.Messag
 
 	// if one or more message failed to send, retry...
 	if err == awssqs.OneOrMoreOperationsUnsuccessfulError {
-		retryMessages := make([]awssqs.Message, 0, awssqs.MAX_SQS_BLOCK_COUNT)
-
 		// check the operation results
 		for ix, op := range opStatus {
 			if op == false {
-				log.Printf("WARNING: message %d failed to send to queue, retrying", ix)
-				retryMessages = append(retryMessages, messages[ix])
-			}
-		}
-
-		// attempt another send of the ones that failed last time
-		opStatus, err = aws.BatchMessagePut(outQueue, retryMessages)
-		if err != nil {
-			if err != awssqs.OneOrMoreOperationsUnsuccessfulError {
-				return err
-			}
-		}
-
-		// did we fail again
-		if err == awssqs.OneOrMoreOperationsUnsuccessfulError {
-			for ix, op := range opStatus {
-				if op == false {
-					log.Printf("ERROR: message %d failed to send to queue, giving up", ix)
-				}
+				log.Printf("WARNING: message %d failed to send to queue", ix)
 			}
 		}
 	}

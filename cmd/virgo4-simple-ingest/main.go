@@ -62,7 +62,12 @@ func main() {
 		}
 
 		count++
-		id := extractId(line)
+		id, err := extractId(line)
+		if err != nil {
+		   log.Printf( "WARNING: document error, ignoring (%s)", err.Error())
+           continue
+		}
+
 		outboundMessageChan <- constructMessage(cfg.DataSourceName, id, line)
 
 		if count%1000 == 0 {
@@ -91,32 +96,29 @@ func main() {
 
 func constructMessage(datasource string, id string, message string) awssqs.Message {
 
-	attributes := make([]awssqs.Attribute, 0, 3)
-	if len(id) != 0 {
-		//log.Printf("Found ID: [%s]", id )
-		attributes = append(attributes, awssqs.Attribute{ Name: "id", Value: id})
-	}
-	//attributes = append( attributes, awssqs.Attribute{ Name: "src", Value: filename } )
-	attributes = append(attributes, awssqs.Attribute{Name: "type", Value: "xml"})
-	attributes = append(attributes, awssqs.Attribute{Name: "source", Value: datasource})
+	attributes := make([]awssqs.Attribute, 0, 4)
+	attributes = append(attributes, awssqs.Attribute{ Name: awssqs.AttributeKeyRecordId, Value: id})
+	attributes = append(attributes, awssqs.Attribute{Name: awssqs.AttributeKeyRecordType, Value: awssqs.AttributeValueRecordTypeXml})
+	attributes = append(attributes, awssqs.Attribute{Name:awssqs.AttributeKeyRecordSource, Value: datasource})
+	attributes = append(attributes, awssqs.Attribute{Name:awssqs.AttributeKeyRecordOperation, Value: awssqs.AttributeValueRecordOperationUpdate})
 	return awssqs.Message{Attribs: attributes, Payload: []byte(message)}
 }
 
-func extractId(buffer string) string {
+func extractId(buffer string) ( string, error ) {
 
 	// generate a query structure from the body
 	doc, err := xmlquery.Parse(bytes.NewReader([]byte(buffer)))
 	if err != nil {
-		return ""
+		return "", err
 	}
 
 	// attempt to extract the statusNode field
 	idNode := xmlquery.FindOne(doc, "//doc/field[@name='id']")
 	if idNode == nil {
-		return ""
+		return "", err
 	}
 
-	return idNode.InnerText()
+	return idNode.InnerText(), nil
 }
 
 //
