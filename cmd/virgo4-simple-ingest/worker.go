@@ -28,9 +28,8 @@ func worker(id int, config *ServiceConfig, aws awssqs.AWS_SQS, inbound <-chan aw
 		select {
 		case message = <-inbound:
 			arrived = true
-			break
+
 		case <-time.After(waitTimeout):
-			break
 		}
 
 		// we have an inbound message to process
@@ -84,13 +83,13 @@ func processesOutboundBlock(id int, aws awssqs.AWS_SQS, messages []awssqs.Messag
 	// attempt to send the messages
 	opStatus, err := aws.BatchMessagePut(outQueue, messages)
 	if err != nil {
-		if err != awssqs.OneOrMoreOperationsUnsuccessfulError {
+		if err != awssqs.ErrOneOrMoreOperationsUnsuccessful {
 			return err
 		}
 	}
 
 	// if one or more message failed to send, retry...
-	if err == awssqs.OneOrMoreOperationsUnsuccessfulError {
+	if err == awssqs.ErrOneOrMoreOperationsUnsuccessful {
 		// check the operation results
 		for ix, op := range opStatus {
 			if op == false {
