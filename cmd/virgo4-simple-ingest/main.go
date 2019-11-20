@@ -34,6 +34,9 @@ func main() {
 	// create the record channel
 	outboundMessageChan := make(chan awssqs.Message, cfg.WorkerQueueSize)
 
+	// disable the cache feature
+	xmlquery.DisableSelectorCache = true
+
 	// start workers here
 	for w := 1; w <= cfg.Workers; w++ {
 		go worker(w, cfg, aws, outboundMessageChan, outQueueHandle)
