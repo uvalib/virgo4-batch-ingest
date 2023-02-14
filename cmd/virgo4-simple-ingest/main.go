@@ -13,9 +13,7 @@ import (
 	"github.com/uvalib/virgo4-sqs-sdk/awssqs"
 )
 
-//
 // main entry point
-//
 func main() {
 
 	log.Printf("===> %s service staring up (version: %s) <===", os.Args[0], Version())
@@ -67,8 +65,8 @@ func main() {
 		count++
 		id, err := extractId(line)
 		if err != nil {
-		   log.Printf( "WARNING: document error, ignoring (%s)", err.Error())
-           continue
+			log.Printf("WARNING: document error, ignoring (%s)", err.Error())
+			continue
 		}
 
 		outboundMessageChan <- constructMessage(cfg.DataSourceName, id, line)
@@ -100,14 +98,14 @@ func main() {
 func constructMessage(datasource string, id string, message string) awssqs.Message {
 
 	attributes := make([]awssqs.Attribute, 0, 4)
-	attributes = append(attributes, awssqs.Attribute{ Name: awssqs.AttributeKeyRecordId, Value: id})
+	attributes = append(attributes, awssqs.Attribute{Name: awssqs.AttributeKeyRecordId, Value: id})
 	attributes = append(attributes, awssqs.Attribute{Name: awssqs.AttributeKeyRecordType, Value: awssqs.AttributeValueRecordTypeXml})
-	attributes = append(attributes, awssqs.Attribute{Name:awssqs.AttributeKeyRecordSource, Value: datasource})
-	attributes = append(attributes, awssqs.Attribute{Name:awssqs.AttributeKeyRecordOperation, Value: awssqs.AttributeValueRecordOperationUpdate})
+	attributes = append(attributes, awssqs.Attribute{Name: awssqs.AttributeKeyRecordSource, Value: datasource})
+	attributes = append(attributes, awssqs.Attribute{Name: awssqs.AttributeKeyRecordOperation, Value: awssqs.AttributeValueRecordOperationUpdate})
 	return awssqs.Message{Attribs: attributes, Payload: []byte(message)}
 }
 
-func extractId(buffer string) ( string, error ) {
+func extractId(buffer string) (string, error) {
 
 	// generate a query structure from the body
 	doc, err := xmlquery.Parse(bytes.NewReader([]byte(buffer)))
